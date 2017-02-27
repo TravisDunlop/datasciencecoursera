@@ -1,0 +1,137 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Travis Dunlop"
+date: "2/20/2017"
+output: html_document
+---
+
+##Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+##Loading the data
+
+```{r packages}
+
+library(caret)
+library(randomForest)
+library(e1071)
+
+```
+
+```{r loading_data}
+
+raw_training <- read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv')
+
+raw_testing <- read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv')
+
+```
+
+##Exploratory Data Analysis
+
+It looks like the samples came from 6 users who each tested out the 5 activities.
+
+```{r exploratory}
+table(raw_training$user_name, raw_training$classe)
+```
+
+##Data Cleaning
+
+The raw data frames have 153 fields, many of which are poorly filled out or not relevant to this study (i.e. timestamps while this is not a time-series study).
+
+We filter those columns out and also make sure each of the factor variables shares the same levels across the training and the test sets to avoid problems later on in predicting off of the models we fit.  We also break the data into three sets: the training set (70% of the records from the raw_training set to build model), validation set (the other 30% to use to test model), and a testing set (20 records that are the final test).
+
+```{r data_cleaning}
+
+#Get rid of columns that have really low percentage filled out
+cols <- colSums(is.na(raw_training) == 0 & raw_training != '') / nrow(raw_training)
+col_names <- names(cols[cols > 0.05])
+
+#get rid of timestamp & other columns
+col_names <- col_names[!(col_names %in% c('X', 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window'))]
+
+training_subset <- raw_training[col_names]
+testing <- raw_testing[col_names[col_names != 'classe']]
+
+```
+
+```{r setting_factors}
+# Setting levels to be the same for training and testing
+for(attr in colnames(training_subset))
+{
+  if (is.factor(training_subset[[attr]]) & (attr %in% colnames(testing)))
+  {
+    new.levels <- union(levels(testing[[attr]]), levels(raw_training[[attr]]))
+    levels(training_subset[[attr]]) <- new.levels
+    levels(testing[[attr]]) <- new.levels
+  }
+}
+```
+
+```{r validation}
+
+inTrain <- createDataPartition(training_subset$classe, p = 0.7, list = FALSE)
+training <- training_subset[inTrain, ]
+validation <- training_subset[-inTrain, ]
+
+```
+
+##Model 1: SVM
+
+The first model we will try is the Support Vector Machine, this takes relatively little computing time, but provides a high estimated out-of-sample accuracy - 95%.
+
+```{r fit1}
+
+fit1 <- svm(classe ~ ., data = training)
+
+pred <- predict(fit1, validation)
+
+confusionMatrix(validation$classe, pred)
+
+```
+
+##Model 2: rpart
+
+The second model we try is rpart.  This model performs terribly, only 49% out-of-sample accuracy.  
+
+```{r fit2}
+
+fit2 <- train(classe ~ ., data = training, method = 'rpart')
+
+pred <- predict(fit2, validation)
+
+confusionMatrix(validation$classe, pred)
+
+```
+
+##Model 3: Random Forest
+
+The third model we try, Random Forest, by far performs the best with a 99.4% out-of-sample accuracy.
+
+```{r fit3}
+
+fit3 <- train(classe ~ ., method="rf", data = training,
+              trControl=trainControl(method = "cv", number = 4))
+
+pred <- predict(fit3, validation)
+
+confusionMatrix(validation$classe, pred)
+
+```
+
+##Final Prediction on Test Set
+
+```{r prediction}
+
+predict(fit3, testing)
+
+```
+
+##Conclusions
+
+To conclude, the estimated out-of-sample errors for our 3 methods were:
+ - SVM: 95%
+ - rpart: 49%
+ - Random Forest: 99%
+ 
+Random Forest is the clear performance winner here, however, it in general takes a long time to execute, so if this model needed to be updated quite often, it should be tuned to only include high-performing variables with appropriate tuning parameters.
