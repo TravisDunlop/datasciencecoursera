@@ -5,6 +5,10 @@ date: "2/20/2017"
 output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
 ##Background
 Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
 
@@ -19,7 +23,7 @@ library(e1071)
 
 ```
 
-```{r loading_data}
+```{r loading_data, cache=TRUE}
 
 raw_training <- read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv')
 
@@ -31,7 +35,7 @@ raw_testing <- read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml
 
 It looks like the samples came from 6 users who each tested out the 5 activities.
 
-```{r exploratory}
+```{r exploratory, cache=TRUE}
 table(raw_training$user_name, raw_training$classe)
 ```
 
@@ -41,7 +45,7 @@ The raw data frames have 153 fields, many of which are poorly filled out or not 
 
 We filter those columns out and also make sure each of the factor variables shares the same levels across the training and the test sets to avoid problems later on in predicting off of the models we fit.  We also break the data into three sets: the training set (70% of the records from the raw_training set to build model), validation set (the other 30% to use to test model), and a testing set (20 records that are the final test).
 
-```{r data_cleaning}
+```{r data_cleaning, cache=TRUE}
 
 #Get rid of columns that have really low percentage filled out
 cols <- colSums(is.na(raw_training) == 0 & raw_training != '') / nrow(raw_training)
@@ -55,7 +59,7 @@ testing <- raw_testing[col_names[col_names != 'classe']]
 
 ```
 
-```{r setting_factors}
+```{r setting_factors, cache=TRUE}
 # Setting levels to be the same for training and testing
 for(attr in colnames(training_subset))
 {
@@ -68,7 +72,7 @@ for(attr in colnames(training_subset))
 }
 ```
 
-```{r validation}
+```{r validation, cache=TRUE}
 
 inTrain <- createDataPartition(training_subset$classe, p = 0.7, list = FALSE)
 training <- training_subset[inTrain, ]
@@ -80,7 +84,7 @@ validation <- training_subset[-inTrain, ]
 
 The first model we will try is the Support Vector Machine, this takes relatively little computing time, but provides a high estimated out-of-sample accuracy - 95%.
 
-```{r fit1}
+```{r fit1, cache=TRUE}
 
 fit1 <- svm(classe ~ ., data = training)
 
@@ -94,7 +98,7 @@ confusionMatrix(validation$classe, pred)
 
 The second model we try is rpart.  This model performs terribly, only 49% out-of-sample accuracy.  
 
-```{r fit2}
+```{r fit2, cache=TRUE}
 
 fit2 <- train(classe ~ ., data = training, method = 'rpart')
 
@@ -108,7 +112,7 @@ confusionMatrix(validation$classe, pred)
 
 The third model we try, Random Forest, by far performs the best with a 99.4% out-of-sample accuracy.
 
-```{r fit3}
+```{r fit3, cache=TRUE}
 
 fit3 <- train(classe ~ ., method="rf", data = training,
               trControl=trainControl(method = "cv", number = 4))
@@ -126,7 +130,6 @@ confusionMatrix(validation$classe, pred)
 predict(fit3, testing)
 
 ```
-
 ##Conclusions
 
 To conclude, the estimated out-of-sample errors for our 3 methods were:
